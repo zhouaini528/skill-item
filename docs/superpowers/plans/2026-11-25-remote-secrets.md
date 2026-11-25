@@ -2,31 +2,33 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 给技能加"仓外密钥文件 + 包装脚本"，生成物 15 → 18 文件；agent 只调 `tools/remote.sh`，不接触明文；本仓库也配一份。
+**Goal:** 给技能加"仓外密钥文件 + 包装脚本"，生成物 15 → 18 文件；SSH 只允许密钥；初始化时可选生成公钥；agent 不接触明文。
 
-**Architecture:** `templates/tools/secrets.sh.tmpl` 负责解析与校验；`templates/tools/remote.sh.tmpl` 是唯一入口（check / git-push / ssh / rsync）；`init.sh` / `adopt.sh` 的文件清单与映射扩到 18；`check.sh` 增加 secrets 校验；测试用假 git/ssh/sshpass 断言"值不进 argv"。
+**Architecture:** `templates/tools/secrets.sh.tmpl` 解析与校验；`templates/tools/remote.sh.tmpl` 是唯一入口（check / key-init / git-push / ssh / rsync）；init/adopt 清单扩到 18；check 增加 secrets 校验；测试用假 git/ssh 断言值不进 argv。
 
-**Tech Stack:** Bash 4+ / coreutils / sed / grep；零第三方依赖；ssh 走系统 `ssh`，密码分支需要 `sshpass`（当前未安装）。
+**Tech Stack:** Bash 4+ / coreutils / OpenSSH（ssh、ssh-keygen）；零第三方依赖。
 
-**Spec:** `docs/superpowers/specs/2026-11-25-remote-secrets-design.md`（主 spec v1.2）
+**Spec:** `docs/superpowers/specs/2026-11-25-remote-secrets-design.md`（v1.1；主 spec v1.2）
 
 ## Global Constraints
 
 - 生成物 18 个；模板 17 个（`env` 由脚本生成）。
 - 密钥文件固定在 `~/.config/project-constraints/<项目>.env`，权限 600，必须在项目目录外。
-- 解析不 `source`、不 `eval`；token/密码不进 argv、不进日志、不进错误信息。
+- **SSH 只允许密钥**：不存密码、不引入 `sshpass`、不弹交互密码。
+- 解析不 `source`、不 `eval`；token 与私钥不进 argv、不进日志、不进错误信息；公钥可以打印。
+- `key-init` 默认 `~/.ssh/id_ed25519`，`--path` 覆盖；存在就只打印，不覆盖；私钥 600、公钥 644。
 - 缺外部文件时 `check.sh` 只警告；文件落在仓库内或权限不是 600 时 FAIL。
-- 本仓库的 `tools/*` 与技能模板逐字节一致（`cmp` 测试；安装后无仓库 `tools` 时跳过）。
-- SKILL.md 正文 ≤ 1500 字符。
-- 变量仍只有 4 个：`PROJECT_NAME` / `ONE_LINER` / `STACK` / `DATE`。
+- 本仓库 `tools/*` 与模板逐字节一致（`cmp`；安装后无仓库 `tools` 时跳过）。
+- SKILL.md 正文 ≤ 1500 字符；变量仍只有 4 个。
 
 ## Review Focus
 
-1. token 或密码出现在 argv、stdout、日志 —— Task 2 的假 git/ssh 测试。
-2. 解析器执行文件内容（source/eval）—— Task 1 的实现与测试。
-3. 仓库内出现 `secrets.env` 却通过 check —— Task 5 的用例。
+1. token 或私钥进 argv、stdout、日志 —— Task 2 的假 git/ssh 与 key-init 测试。
+2. 解析器执行文件内容（source/eval）—— Task 1。
+3. 仓库内出现 `secrets.env` 却通过 check —— Task 5。
 4. 外部文件 644 仍被使用 —— Task 1 的权限用例。
-5. 18 文件计数没同步到 init/adopt/测试 —— Task 4/8 的全量回归。
+5. key-init 覆盖已有私钥或打印私钥 —— Task 2 的二次运行与 `PRIVATE KEY` 断言。
+6. 18 文件计数没同步 —— Task 4/8 全量回归。
 
 ---
 
@@ -37,7 +39,7 @@
 - Create: `project-constraints/tests/test-secrets.sh`
 
 **Interfaces:**
-- Produces: `secrets_project_root`（`PROJECT_ROOT` 覆盖 → `git rev-parse --show-toplevel` → `pwd`）；`secrets_path`（`PROJECT_SECRETS` 覆盖 → `XDG_CONFIG_HOME`/`HOME/.config` + `project-constraints/<slug>.env`）；`secrets_load`（校验后导出 `GIT_USER` / `GIT_TOKEN` / `SSH_HOST` / `SSH_USER` / `SSH_PASSWORD` / `SSH_KEY` / `SSH_PORT` / `RSYNC_PATH`）
+- Produces: `secrets_project_root`、`secrets_path`、`secrets_load`（导出 `GIT_USER` / `GIT_TOKEN` / `SSH_HOST` / `SSH_USER` / `SSH_KEY` / `SSH_PORT` / `RSYNC_PATH`；`~` 展开为 `$HOME`；`password` 忽略并警告）
 
 - [ ] **Step 1: 写解析器测试（会失败）**
 
@@ -62,9 +64,8 @@ token = "tok#123"
 [ssh]
 host = 10.0.0.5
 user = deploy
-password = 'p@ss'
 port = 2222
-key =
+key  = /home/deploy/.ssh/id_test
 EOF
 chmod 600 "$good"
 
@@ -72,16 +73,23 @@ run_load() {
   PROJECT_ROOT="$W/proj" PROJECT_SECRETS="$1" bash -c '
     source "'"$W"'/secrets.sh"
     secrets_load || exit 1
-    printf "%s|%s|%s|%s|%s|" "$GIT_USER" "$GIT_TOKEN" "$SSH_HOST" "$SSH_USER" "$SSH_PORT"
-    if [ -n "$SSH_KEY" ]; then printf "%s" "$SSH_KEY"; else printf none; fi
+    printf "%s|%s|%s|%s|%s|%s\n" "$GIT_USER" "$GIT_TOKEN" "$SSH_HOST" "$SSH_USER" "$SSH_PORT" "$SSH_KEY"
   '
 }
 out=$(run_load "$good"); rc=$?
-[[ $rc -eq 0 && "$out" == "alice|tok#123|10.0.0.5|deploy|2222|none" ]] && ok "解析与引号" || bad "解析: rc=$rc out=$out"
+[[ $rc -eq 0 && "$out" == "alice|tok#123|10.0.0.5|deploy|2222|/home/deploy/.ssh/id_test" ]] && ok "解析与引号" || bad "解析: rc=$rc out=$out"
+
+printf '[ssh]\nkey = ~/.ssh/id_ed25519\n' > "$W/tilde.env"; chmod 600 "$W/tilde.env"
+out=$(run_load "$W/tilde.env"); rc=$?
+[[ $rc -eq 0 && "$out" == "|||||$HOME/.ssh/id_ed25519" ]] && ok "~ 展开" || bad "~ 展开: $out"
+
+printf '[ssh]\npassword = x\nkey = /k\n' > "$W/pw.env"; chmod 600 "$W/pw.env"
+out=$(run_load "$W/pw.env" 2>&1); rc=$?
+[[ $rc -eq 0 && "$out" == *"密码路线已移除"* && "$out" == *"|||||/k"* ]] && ok "password 忽略并警告" || bad "password: rc=$rc out=$out"
 
 printf 'ENV=1\n[git]\nuser = x\ntoken = y\n' > "$W/unknown.env"; chmod 600 "$W/unknown.env"
 out=$(run_load "$W/unknown.env"); rc=$?
-[[ $rc -eq 0 && "$out" == "x|y||||none" ]] && ok "未知节忽略" || bad "未知节: $out"
+[[ $rc -eq 0 && "$out" == "x|y|||||" ]] && ok "未知节忽略" || bad "未知节: $out"
 
 cp "$good" "$W/perm.env"; chmod 644 "$W/perm.env"
 out=$(PROJECT_ROOT="$W/proj" PROJECT_SECRETS="$W/perm.env" bash -c 'source "'"$W"'/secrets.sh"; secrets_load' 2>&1); rc=$?
@@ -103,7 +111,7 @@ Expected: FAIL，`templates/tools/secrets.sh.tmpl` 不存在。
 
 - [ ] **Step 3: 实现 `secrets.sh.tmpl`**
 
-要点：`PROJECT_ROOT` / `PROJECT_SECRETS` 覆盖；`secrets_load` 依次校验存在、`stat -c %a` 为 600、`stat -c %u` 等于 `id -u`、`realpath` 不在项目根下；逐行解析，`#` 注释、空行、`[节]`、第一个 `=` 切分、去空白、去引号、`tr -d '\r'`；按 `节:键` 导出；未知键忽略；错误用 `die()` 只报路径或键名。不 `source`、不 `eval`。
+要点：`PROJECT_ROOT` / `PROJECT_SECRETS` 覆盖；校验存在、600、属主、仓内；逐行解析（`#` 注释、空行、`[节]`、第一个 `=`、去空白/引号、`tr -d '\r'`）；按 `节:键` 导出；`key` 以 `~` 开头替换为 `$HOME`；`password` 忽略并 `warn`；未知键忽略；错误只报路径或键名。不 `source`、不 `eval`。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -119,7 +127,7 @@ git commit -m "feat(secrets): INI 解析与权限校验"
 
 ---
 
-### Task 2: remote.sh
+### Task 2: remote.sh（含 key-init）
 
 **Files:**
 - Create: `project-constraints/templates/tools/remote.sh.tmpl`
@@ -127,9 +135,9 @@ git commit -m "feat(secrets): INI 解析与权限校验"
 
 **Interfaces:**
 - Consumes: Task 1 的 `secrets_load`
-- Produces: `remote.sh check|git-push|ssh|rsync`；0 成功 / 1 校验或执行失败 / 2 用法
+- Produces: `remote.sh check|key-init|git-push|ssh|rsync`；0 成功 / 1 校验或执行失败 / 2 用法
 
-- [ ] **Step 1: 追加 remote.sh 测试（会失败）**
+- [ ] **Step 1: 追加测试（会失败）**
 
 ~~~bash
 mkdir -p "$W/bin"
@@ -154,10 +162,21 @@ grep -qx 'origin main' "$W/argv" && ok "推送参数" || bad "argv: $(cat "$W/ar
 ! grep -q 'tok#123' "$W/argv" && [[ "$out" != *"tok#123"* ]] && ok "token 不进 argv/输出" || bad "token 泄露"
 grep -qx 'tok#123' "$W/token" && ok "askpass 返回 token" || bad "askpass 未工作"
 
-cp "$good" "$W/key.env"; printf 'key = /home/deploy/.ssh/id_test\n' >> "$W/key.env"; chmod 600 "$W/key.env"
+cp "$good" "$W/key.env"; sed -i "s|^key  = .*|key = $W/id_test|" "$W/key.env"; chmod 600 "$W/key.env"
+printf 'dummy\n' > "$W/id_test"; chmod 600 "$W/id_test"
 out=$(PATH="$W/bin:$PATH" SSH_LOG="$W/sshlog" PROJECT_ROOT="$W/proj" PROJECT_SECRETS="$W/key.env" \
-  bash "$T/templates/tools/remote.sh.tmpl" ssh "hostname" 2>&1)
-grep -q '10.0.0.5' "$W/sshlog" && grep -q 'hostname' "$W/sshlog" && ok "ssh 参数" || bad "ssh: $(cat "$W/sshlog" 2>/dev/null)"
+  bash "$T/templates/tools/remote.sh.tmpl" ssh "hostname" 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -q -- "-i $W/id_test" "$W/sshlog" && grep -q 'deploy@10.0.0.5' "$W/sshlog" && grep -q 'hostname' "$W/sshlog" && ok "ssh 用密钥" || bad "ssh: $(cat "$W/sshlog" 2>/dev/null)"
+
+out=$(bash "$T/templates/tools/remote.sh.tmpl" key-init --path "$W/newkey" 2>&1); rc=$?
+[[ $rc -eq 0 && -f "$W/newkey" && -f "$W/newkey.pub" ]] && ok "key-init 生成" || bad "key-init rc=$rc $out"
+grep -q 'ssh-ed25519' "$out" && ok "打印公钥" || bad "未打印公钥"
+[[ "$out" != *"PRIVATE KEY"* ]] && ok "不打印私钥" || bad "打印了私钥"
+[[ "$(stat -c %a "$W/newkey")" == "600" ]] && ok "私钥 600" || bad "私钥权限"
+before=$(sha256sum "$W/newkey" | cut -d' ' -f1)
+bash "$T/templates/tools/remote.sh.tmpl" key-init --path "$W/newkey" >/dev/null 2>&1
+after=$(sha256sum "$W/newkey" | cut -d' ' -f1)
+[[ "$before" == "$after" ]] && ok "不覆盖已有私钥" || bad "私钥被覆盖"
 
 out=$(PATH="$W/bin:$PATH" PROJECT_ROOT="$W/proj" PROJECT_SECRETS="$good" \
   bash "$T/templates/tools/remote.sh.tmpl" check 2>&1); rc=$?
@@ -172,7 +191,7 @@ Expected: FAIL，remote.sh 不存在。
 
 - [ ] **Step 3: 实现 `remote.sh.tmpl`**
 
-`source` 同目录 `secrets.sh`；`check` 打印 `file=ok`、`mode=600`、`git=ok|missing`、`ssh=ok|missing`、`rsync=ok|missing`；`git-push` 用 `mktemp` 生成 askpass（700、`trap` 删除），`GIT_ASKPASS` + `GIT_TERMINAL_PROMPT=0`，无参数时默认 `origin HEAD`；`ssh` 有 `SSH_KEY` 用 `ssh -i`，否则必须有 `sshpass`（`SSHPASS` + `sshpass -e`），没有就报两条路；`rsync` 用 ssh 参数组 `-e`，dst 缺省用 `RSYNC_PATH`。错误只报键名。
+`source` 同目录 `secrets.sh`；`check` 打印 `file=ok`、`mode=600`、`git=ok|missing`、`ssh=ok|missing`、`rsync=ok|missing`；`key-init`：解析 `--path`，默认 `$HOME/.ssh/id_ed25519`，目录不存在则建并 700，私钥不存在则 `ssh-keygen -q -t ed25519 -N "" -f`，存在则读公钥（`.pub` 缺失时用 `ssh-keygen -y` 派生），打印公钥与 `ssh-keygen -lf` 指纹，给服务器端 `authorized_keys` 追加命令，不覆盖、不打印私钥；`git-push` 用 `mktemp` 生成 askpass（700、`trap`），`GIT_ASKPASS` + `GIT_TERMINAL_PROMPT=0`，无参数默认 `origin HEAD`；`ssh` 要求 `SSH_KEY` 存在，`ssh -i key -p port user@host cmd`，缺文件报 `key-init` 提示；`rsync` 用 ssh 参数组 `-e`，dst 缺省用 `RSYNC_PATH`。错误只报键名。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -183,7 +202,7 @@ Expected: 全 ok。
 
 ~~~bash
 git add project-constraints/templates/tools/remote.sh.tmpl project-constraints/tests/test-secrets.sh
-git commit -m "feat(remote): 凭据包装入口与假二进制测试"
+git commit -m "feat(remote): 密钥入口、key-init 与假二进制测试"
 ~~~
 
 ---
@@ -194,9 +213,6 @@ git commit -m "feat(remote): 凭据包装入口与假二进制测试"
 - Create: `project-constraints/templates/secrets.example`
 - Modify: `project-constraints/tests/test-templates.sh`
 
-**Interfaces:**
-- Produces: 两节案例模板；`[git]` / `[ssh]` / `[rsync]`
-
 - [ ] **Step 1: 追加断言（会失败）**
 
 ~~~bash
@@ -204,6 +220,8 @@ assert_file "secrets 模板" "$T/templates/secrets.example"
 assert_grep "git 节" "$T/templates/secrets.example" '^\[git\]$'
 assert_grep "ssh 节" "$T/templates/secrets.example" '^\[ssh\]$'
 assert_grep "token 键" "$T/templates/secrets.example" '^token = '
+assert_grep "key 键" "$T/templates/secrets.example" '^key  = ~/.ssh/id_ed25519$'
+assert_no_grep "无 password" "$T/templates/secrets.example" '^password'
 assert_grep "chmod 提示" "$T/templates/secrets.example" 'chmod 600'
 ~~~
 
@@ -214,7 +232,7 @@ Expected: FAIL。
 
 - [ ] **Step 3: 写 `secrets.example`**
 
-内容用 spec §2 的模板：路径注释、`[git]` 的 user/token、`[ssh]` 的 host/user/password/port/key 注释、`[rsync]` 可选 path 注释；值全部是占位符，不含任何真实凭据。
+按 spec §2：路径注释、`[git]`、`[ssh]`（host/user/port/key，无 password）、`[rsync]` 可选；值全是占位符。
 
 - [ ] **Step 4: 跑测试确认通过并提交**
 
@@ -223,7 +241,7 @@ Expected: 全 ok。
 
 ~~~bash
 git add project-constraints/templates/secrets.example project-constraints/tests/test-templates.sh
-git commit -m "feat(templates): 远端凭据模板"
+git commit -m "feat(templates): 远端凭据模板（仅密钥）"
 ~~~
 
 ---
@@ -237,31 +255,19 @@ git commit -m "feat(templates): 远端凭据模板"
 - Modify: `project-constraints/tests/test-init.sh`
 - Modify: `project-constraints/tests/test-adopt.sh`
 
-**Interfaces:**
-- Consumes: Task 1–3 的模板
-- Produces: 18 文件清单；`tmpl_for` 覆盖新文件；init 末尾打印仓外 secrets 命令
-
 - [ ] **Step 1: 更新测试（会失败）**
 
-`test-init.sh`：文件数 15 → 18；追加 `[[ -f "$D/p/secrets.example" ]]`、`[[ -x "$D/p/tools/remote.sh" ]]`；`out=$(... --apply)` 后 grep `~/.config/project-constraints`。
+`test-init.sh`：文件数 15 → 18；断言 `secrets.example` 与 `tools/remote.sh` 存在、可执行；`--apply` 输出包含 `~/.config/project-constraints`。
 `test-adopt.sh`：`find ... -eq 15` → 18（fixture 只有 AGENTS.md，其余 17 个由 adopt 创建）。
 
 - [ ] **Step 2: 跑测试确认失败**
 
 Run: `bash project-constraints/tests/test-init.sh; bash project-constraints/tests/test-adopt.sh`
-Expected: FAIL，文件数仍是 15。
+Expected: FAIL。
 
 - [ ] **Step 3: 实现**
 
-`FILES` 追加 `secrets.example tools/secrets.sh tools/remote.sh`（共 18）；`lib.sh` 的 `tmpl_for` 加三条映射（`secrets.example` → `templates/secrets.example`，两个 `.sh` → 对应 `.tmpl`）；`chmod_exec` 加两个新脚本；init 的 `--apply` 预检改为 17 个目标路径（只排除 `.gitignore`；`env` 也算，防止覆盖）；init 末尾打印：
-
-~~~bash
-mkdir -p ~/.config/project-constraints
-cp secrets.example ~/.config/project-constraints/<目录名>.env
-chmod 600 ~/.config/project-constraints/<目录名>.env
-~~~
-
-adopt 的报告"将创建"与 `--apply` 走同一清单。
+`FILES` 追加 `secrets.example tools/secrets.sh tools/remote.sh`；`lib.sh` 的 `tmpl_for` 加三条映射；`chmod_exec` 加两个脚本；init 预检改为 17 个目标（只排除 `.gitignore`，`env` 也算）；init 末尾打印 `mkdir/cp/chmod` 命令，并提示"如需 SSH，运行 `tools/remote.sh key-init` 并把公钥加到服务器"。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -282,9 +288,6 @@ git commit -m "feat(init/adopt): 18 文件与凭据提示"
 **Files:**
 - Modify: `project-constraints/scripts/check.sh`
 - Modify: `project-constraints/tests/test-check.sh`
-
-**Interfaces:**
-- Produces: 18 文件校验；`secrets.example` 存在；`.gitignore` 挡 `secrets.env`；仓库内无 `secrets.env`；外部文件存在时 600（缺失只警告）
 
 - [ ] **Step 1: 追加测试（会失败）**
 
@@ -310,7 +313,7 @@ Expected: 新增用例 FAIL。
 
 - [ ] **Step 3: 实现**
 
-`FILES` 18；`.gitignore` 用 `grep -qxF` 查 `secrets.env`；`$DIR/secrets.env` 存在直接 `bad`；外部路径 = `PROJECT_SECRETS` 或 `$HOME/.config/project-constraints/$(basename "$DIR").env`，存在才 `stat -c %a`，必须 600，否则 `bad`，缺失 `ok "外部 secrets 未配置（警告）"` 不置 fail。
+`FILES` 18；`.gitignore` 查 `secrets.env`；`$DIR/secrets.env` 存在直接 `bad`；外部路径 = `PROJECT_SECRETS` 或 `$HOME/.config/project-constraints/$(basename "$DIR").env`，存在才 `stat -c %a`（必须 600），缺失 `ok "外部 secrets 未配置（警告）"`。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -337,8 +340,8 @@ git commit -m "feat(check): 凭据文件与权限校验"
 
 - [ ] **Step 1: 追加断言（会失败）**
 
-`test-templates.sh`：AGENTS 含 `tools/remote.sh`、`不打印`；ENVIRONMENTS 含 `~/.config`。
-`test-skill-md.sh`：SKILL 含 `secrets.example` 与 `~/.config`。
+`test-templates.sh`：AGENTS 含 `tools/remote.sh`、`私钥`；ENVIRONMENTS 含 `~/.config`。
+`test-skill-md.sh`：SKILL 含 `secrets.example`、`key-init`、`~/.config`。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -347,18 +350,18 @@ Expected: FAIL。
 
 - [ ] **Step 3: 改三个文件**
 
-AGENTS §6 增加：远端操作只走 `tools/remote.sh`；密钥文件在仓外，不读、不打印、不复制；缺文件停下问。ENVIRONMENTS §6 写路径、600、仓外、入口。SKILL：new 第 4 步与 adopt 第 6 步各加"提示创建仓外 secrets"，常见错误加"把 token/密码贴进聊天或仓库"；正文仍 ≤ 1500 字符。
+AGENTS §6：远端只走 `tools/remote.sh`；私钥不读不打印；缺密钥停下问。ENVIRONMENTS §6：路径、600、仓外、入口。SKILL：new 第 4 步与 adopt 第 6 步加"问是否生成/使用 SSH 公钥；是则 `tools/remote.sh key-init`，把公钥给用户"；常见错误加"把 token 或私钥贴进聊天/仓库"；正文 ≤ 1500 字符。
 
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `bash project-constraints/tests/test-templates.sh; bash project-constraints/tests/test-skill-md.sh`
-Expected: 全 ok（含长度断言）。
+Expected: 全 ok。
 
 - [ ] **Step 5: 提交**
 
 ~~~bash
 git add project-constraints/templates project-constraints/SKILL.md project-constraints/tests
-git commit -m "docs(rules): 远端凭据规则进 AGENTS/ENVIRONMENTS/SKILL"
+git commit -m "docs(rules): 远端凭据与公钥流程进 AGENTS/ENVIRONMENTS/SKILL"
 ~~~
 
 ---
@@ -370,7 +373,7 @@ git commit -m "docs(rules): 远端凭据规则进 AGENTS/ENVIRONMENTS/SKILL"
 - Create: `tools/secrets.sh`、`tools/remote.sh`
 - Modify: `.gitignore`
 - Modify: `README.md`
-- Modify: `project-constraints/tests/test-secrets.sh`（`cmp` 防漂移）
+- Modify: `project-constraints/tests/test-secrets.sh`（`cmp`）
 
 - [ ] **Step 1: 追加 `cmp` 测试（会失败）**
 
@@ -392,7 +395,7 @@ Expected: FAIL，仓库 `tools` 不存在。
 
 - [ ] **Step 3: 落盘**
 
-复制模板到仓库根（写成 root 的文件先 `chown lwj:lwj` 再提交）；`.gitignore` 加 `secrets.env` 与 `*.secrets`；README 加"远端凭据"一节（路径、`cp/chmod`、`remote.sh` 用法、缺 sshpass 的提示）；README 里"108 条断言"改成不写死数字。
+复制模板到仓库根（写成 root 的文件先 `chown lwj:lwj` 再提交）；`.gitignore` 加 `secrets.env` 与 `*.secrets`；README 加"远端凭据"一节（路径、`cp/chmod`、`key-init`、`remote.sh` 用法），把"108 条断言"改成不写死数字。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -420,7 +423,7 @@ Expected: 全 ok，0 FAIL。
 
 - [ ] **Step 2: e2e**
 
-生成 `.scratch/e2e-secrets`（18 文件），填 §7/§8；在 `.scratch/ext.env` 写临时凭据（600）。跑 `remote.sh` 时显式给 `PROJECT_ROOT=$PWD/.scratch/e2e-secrets`、`PROJECT_SECRETS=$PWD/.scratch/ext.env`（否则会按仓库根算路径）。用假 git 在 `PATH` 里跑 `git-push`，断言 token 不进 argv；`check.sh` 在外部文件缺失时 0、在仓库内放 `secrets.env` 时 1。
+生成 `.scratch/e2e-secrets`（18 文件），填 §7/§8；在 `.scratch/ext.env` 写临时凭据（600，含 `key = .scratch/id_test`），用假 git 在 `PATH` 里跑 `remote.sh git-push`（显式 `PROJECT_ROOT` / `PROJECT_SECRETS`），断言 token 不进 argv；`key-init --path .scratch/k2` 打印公钥、不打印私钥；`check.sh` 外部缺失时 0、仓库内放 `secrets.env` 时 1。
 
 - [ ] **Step 3: 记录**
 
