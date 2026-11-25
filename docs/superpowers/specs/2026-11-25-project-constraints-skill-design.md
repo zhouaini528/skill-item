@@ -144,7 +144,7 @@ SKILL.md 约束：
 1. 问 5 个问题（一次问完）：项目名、一句话目标、技术栈、环境（仅 local / +远程机 / +staging / +prod）、验证在哪跑。
 2. dry-run：`bash scripts/init.sh --target . --name … --one-liner … --stack …`，列出将创建的文件。
 3. `--apply`：写文件、`chmod 600 env`、`chmod +x tools/*.sh`、幂等追加 `.gitignore`、目标路径已存在则整批拒绝。
-4. 补写：README 文档地图；AGENTS §1 与 §4；`docs/spec/00-overview.md`；按答案填 ENVIRONMENTS 矩阵。
+4. 补写：AGENTS §1 与 §4；`docs/spec/00-overview.md`；按答案填 ENVIRONMENTS 矩阵与 §7/§8。
 5. 自检：`bash scripts/check.sh .` 全过；`bash tools/env.sh` 行为正确；贴文件清单与检查输出。
 
 ### 5.3 adopt（六步）
