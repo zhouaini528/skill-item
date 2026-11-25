@@ -63,3 +63,4 @@
   5. check 校验 ENV/ROLE/ROOT、600、`/env`；占位符只扫 15 个生成文件。
   6. C-xxx 落到 `docs/decisions/README.md` 的冲突表；D-001 来源改指仓库内文件。
   7. 测试临时目录移到仓库 `.scratch/`，安装包内不再残留。
+- 审核修复后：check.sh 新增 STATUS 四节、ENVIRONMENTS §7/§8 每条 bullet 有值、决策索引三项校验；e2e 生成后先填 §7/§8 再 check，new 与 adopt 均为 check: OK；adopt 的 AGENTS sha256 不变。

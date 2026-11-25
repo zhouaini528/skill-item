@@ -18,6 +18,18 @@ done
 assert_grep "环境声明格式" "$T/templates/AGENTS.md.tmpl" 'ENV=<local'
 assert_grep "开工跑 env.sh" "$T/templates/AGENTS.md.tmpl" 'bash tools/env.sh'
 assert_grep "STATUS 六节" "$T/templates/STATUS.md.tmpl" '^## 环境快照$'
+assert_grep "环境声明频率" "$T/templates/AGENTS.md.tmpl" '会话第一条'
+assert_grep "扩范围例子" "$T/templates/AGENTS.md.tmpl" '改 API 契约'
+assert_grep "归档条件" "$T/templates/AGENTS.md.tmpl" '若存在'
+assert_grep "spec 目标区间" "$T/templates/AGENTS.md.tmpl" '300–600'
+assert_grep "提交不批量重排" "$T/templates/AGENTS.md.tmpl" '不批量重排'
+assert_grep "提交带锚点" "$T/templates/AGENTS.md.tmpl" '锚点'
+assert_grep "TDD 例外" "$T/templates/AGENTS.md.tmpl" '纯文档或配置'
+assert_grep "凭据唯一出处" "$T/templates/ENVIRONMENTS.md.tmpl" '唯一出处'
+assert_grep "C 编号规则" "$T/templates/docs/decisions/README.md.tmpl" '临时号'
+assert_grep "决策索引校验" "$T/templates/docs/decisions/README.md.tmpl" 'check.sh'
+assert_grep "证据不设下限" "$T/templates/docs/evidence/README.md.tmpl" '不设 300'
+assert_grep "出处地图示例" "$T/templates/docs/spec/README.md.tmpl" '术语、目标与范围'
 assert_no_grep "AGENTS 无旧项目残留" "$T/templates/AGENTS.md.tmpl" 'QTV|trader-plan2|43\.106\.83\.160|AutoTrader|\.qtv-env'
 
 assert_file "README 模板" "$T/templates/README.md.tmpl"

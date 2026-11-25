@@ -6,7 +6,13 @@ D="$R/.scratch/check"; rm -rf "$D"; mkdir -p "$D"
 fail=0
 ok()  { printf 'ok   %s\n' "$1"; }
 bad() { printf 'FAIL %s\n' "$1"; fail=1; }
-gen() { rm -rf "$1"; bash "$T/scripts/init.sh" --target "$1" --name x --one-liner y --stack z --apply >/dev/null; }
+gen() {
+  rm -rf "$1"; bash "$T/scripts/init.sh" --target "$1" --name x --one-liner y --stack z --apply >/dev/null
+  sed -i 's/^- 本地可跑：.*/- 本地可跑：npm run check/' "$1/ENVIRONMENTS.md"
+  sed -i 's/^- 必须在远端跑：.*/- 必须在远端跑：无/' "$1/ENVIRONMENTS.md"
+  sed -i 's/^- 主机与部署根：.*/- 主机与部署根：localhost/' "$1/ENVIRONMENTS.md"
+  sed -i 's/^- 数据库：.*/- 数据库：无/' "$1/ENVIRONMENTS.md"
+}
 
 gen "$D/a"
 out=$(bash "$T/scripts/check.sh" "$D/a" 2>&1); rc=$?
@@ -47,5 +53,17 @@ out=$(bash "$T/scripts/check.sh" "$D/i" 2>&1); rc=$?
 gen "$D/j"; mkdir -p "$D/j/src"; printf '{{TOKEN}}\n' > "$D/j/src/t.txt"
 out=$(bash "$T/scripts/check.sh" "$D/j" 2>&1); rc=$?
 [[ $rc -eq 0 ]] && ok "用户文件里的占位符不算" || bad "误报用户文件: $out"
+
+gen "$D/k"; sed -i 's/^- 本地可跑：.*/- 本地可跑：/' "$D/k/ENVIRONMENTS.md"
+out=$(bash "$T/scripts/check.sh" "$D/k" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"§7"* ]] && ok "§7 空表" || bad "§7 空表未报"
+
+gen "$D/l"; printf '# D-002 新决策\n' > "$D/l/docs/decisions/D-002.md"
+out=$(bash "$T/scripts/check.sh" "$D/l" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"索引"* ]] && ok "决策索引缺失" || bad "索引缺失未报"
+
+gen "$D/m"; sed -i '/^## 环境快照$/d' "$D/m/STATUS.md"
+out=$(bash "$T/scripts/check.sh" "$D/m" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"STATUS"* ]] && ok "STATUS 结构" || bad "STATUS 结构未报"
 
 exit "$fail"

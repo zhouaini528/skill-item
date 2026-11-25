@@ -122,3 +122,12 @@
 3. §7/§8 非空：check.sh 增加两条断言；STATUS 已把"填写 §7/§8"列为下一步。
 4. init 支持环境：加 --env/--role（默认 local/authoring），与 adopt 一致。
 5. spec 篇幅：AGENTS §5 改为"单篇目标 300–600 行、上限 600；细节见 docs/spec/README.md"。
+
+## 修复状态（2026-11-25）
+
+- **P0 全部修复**：凭据只留 ENVIRONMENTS §6（AGENTS 引用）；声明改为"会话第一条 + 环境变化"；§7/§8 每条 bullet 必须有值，check.sh 拦截空表；init 支持 --env/--role（默认 local/authoring）。
+- **P1 全部修复**：扩范围例子；spec 300–600 与上限 600 统一；证据措辞；提交"不批量重排"与"文件锚点"；local/testing 红线边界；出处地图加示例行；C 编号规则；决策索引校验；同步与收尾并入 AGENTS §7，ops 加同步节。
+- **P2 已带 3 条**：归档规则条件化；TDD 纯文档/配置例外；证据"不设 300 下限"。
+- **P2 未做**：判定顺序不读 .env 的说明、证据登记表校验、check-links 引用式链接边界、push 节奏、e2e 账号规则。
+
+对应提交：fix: 按逐条审核收敛约束规则。

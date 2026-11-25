@@ -24,6 +24,11 @@ bash "$T/scripts/init.sh" --target "$D/带 空格/项目" --name n --one-liner o
 [[ -f "$D/带 空格/项目/AGENTS.md" ]] && ok "空格中文路径" || bad "空格中文路径"
 grep -qF 'A & B | C / D' "$D/带 空格/项目/AGENTS.md" && ok "特殊字符原样" || bad "特殊字符被破坏"
 
+bash "$T/scripts/init.sh" --target "$D/envt" --name n --one-liner o --stack s --env testing --role app --apply >/dev/null
+grep -qx 'ENV=testing' "$D/envt/env" && grep -qx 'ROLE=app' "$D/envt/env" && ok "init env/role 参数" || bad "init env/role 参数"
+out=$(bash "$T/scripts/init.sh" --target "$D/envbad" --name n --one-liner o --stack s --env foo --apply 2>&1); rc=$?
+[[ $rc -eq 2 ]] && ok "init 非法 env" || bad "init 非法 env: rc=$rc"
+
 mkdir -p "$D/sym"
 ln -s "$D/outside-created" "$D/sym/AGENTS.md"
 out=$(bash "$T/scripts/init.sh" --target "$D/sym" --name n --one-liner o --stack s --apply 2>&1); rc=$?

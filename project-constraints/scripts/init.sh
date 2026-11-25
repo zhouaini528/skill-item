@@ -6,11 +6,11 @@ SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$SKILL_DIR/scripts/lib.sh"
 
 usage() {
-  printf 'usage: bash %s --target DIR --name S --one-liner S --stack S [--date D] [--apply]\n' "$0" >&2
+  printf 'usage: bash %s --target DIR --name S --one-liner S --stack S [--date D] [--env E] [--role R] [--apply]\n' "$0" >&2
   exit 2
 }
 
-TARGET="."; PROJECT_NAME=""; ONE_LINER=""; STACK=""; DATE=""; APPLY=0
+TARGET="."; PROJECT_NAME=""; ONE_LINER=""; STACK=""; DATE=""; F_ENV=""; F_ROLE=""; APPLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --target) [ $# -ge 2 ] || usage; TARGET=$2; shift 2 ;;
@@ -18,6 +18,8 @@ while [ $# -gt 0 ]; do
     --one-liner) [ $# -ge 2 ] || usage; ONE_LINER=$2; shift 2 ;;
     --stack) [ $# -ge 2 ] || usage; STACK=$2; shift 2 ;;
     --date) [ $# -ge 2 ] || usage; DATE=$2; shift 2 ;;
+    --env) [ $# -ge 2 ] || usage; F_ENV=$2; shift 2 ;;
+    --role) [ $# -ge 2 ] || usage; F_ROLE=$2; shift 2 ;;
     --apply) APPLY=1; shift ;;
     -h|--help) usage ;;
     *) printf 'unknown argument: %s\n' "$1" >&2; usage ;;
@@ -26,6 +28,10 @@ done
 
 [ -n "$PROJECT_NAME" ] && [ -n "$ONE_LINER" ] && [ -n "$STACK" ] || usage
 [ -n "$DATE" ] || DATE=$(date +%F)
+[ -n "$F_ENV" ] || F_ENV=local
+[ -n "$F_ROLE" ] || F_ROLE=authoring
+case "$F_ENV" in local|testing|staging|prod) ;; *) printf '非法 --env: %s\n' "$F_ENV" >&2; usage ;; esac
+case "$F_ROLE" in authoring|app|ci) ;; *) printf '非法 --role: %s\n' "$F_ROLE" >&2; usage ;; esac
 
 FILES="AGENTS.md ENVIRONMENTS.md STATUS.md README.md env env.example .gitignore docs/spec/README.md docs/spec/00-overview.md docs/decisions/README.md docs/decisions/D-001.md docs/evidence/README.md docs/ops/README.md tools/env.sh tools/check-links.sh"
 
@@ -65,7 +71,7 @@ for f in $FILES; do
   created=$((created+1))
 done
 
-printf 'ENV=local\nROLE=authoring\nROOT=%s\n' "$ROOT" > "$TARGET/env"
+printf 'ENV=%s\nROLE=%s\nROOT=%s\n' "$F_ENV" "$F_ROLE" "$ROOT" > "$TARGET/env"
 chmod_600 "$TARGET/env"
 created=$((created+1))
 chmod_exec "$TARGET/tools/env.sh" "$TARGET/tools/check-links.sh"

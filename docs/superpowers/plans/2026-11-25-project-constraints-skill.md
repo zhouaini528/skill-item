@@ -163,13 +163,13 @@ Expected: FAIL，含 `missing`；退出码 1。
 
 标题 `# AGENTS · {{PROJECT_NAME}}`；开头一句 `{{ONE_LINER}}`、`> 技术栈：{{STACK}}`；八节各 1–3 条：
 
-1 身份与边界：本仓是什么；默认只改什么；业务代码变更需明确请求；归档只读；不写凭据。
-2 环境与声明：判定顺序指向 ENVIRONMENTS；首行声明原文 `每条回复首行写：ENV=<local|testing|staging|prod> · ROLE=<authoring|app|ci> · ROOT=<绝对路径> · 依据=<env|none>`；`ENV=unknown` 停止询问。
+1 身份与边界：本仓是什么；默认只改什么，扩范围（改契约/他人模块/加依赖/改目录）先问；归档若存在则只读；凭据指向 ENVIRONMENTS §6。
+2 环境与声明：判定顺序指向 ENVIRONMENTS；原文 `会话第一条回复首行写：ENV=<local|testing|staging|prod> · ROLE=<authoring|app|ci> · ROOT=<绝对路径> · 依据=<env|none>；环境变化时更新这一行`；`ENV=unknown` 停止。
 3 开工顺序：AGENTS → STATUS → `bash tools/env.sh` → README → 本任务相关 spec。
-4 硬红线：每环境允许/禁止指向 ENVIRONMENTS；凭据只在授权文件且只读。
-5 文档规则：单一出处；spec 不引用 evidence；口径变更先立 D-xxx；冲突登记 C-xxx；文件名 ASCII、标题中文；spec 单篇上限 600 行；证据带日期与状态；旧结论不静默改写。
-6 验证与证据：行为变更先写失败测试；证据四件套（命令/输出/截图或 hash）；缺失视为未完成。
-7 提交与收尾：一次一件事；前缀 feat/fix/test/docs/chore 带 scope；说明含改了什么、影响、验证、遗留；状态变化更新 STATUS；口头约定必须落文件。
+4 硬红线：每环境允许/禁止指向 ENVIRONMENTS §5；凭据只引用 §6，不复制。
+5 文档规则：单一出处；spec 不引用 evidence；口径变更先立 D-xxx；冲突 C-xxx；文件名 ASCII、标题中文；spec 目标 300–600、上限 600，细节见 spec README；证据带日期与状态；旧结论不静默改写。
+6 验证与证据：先写失败测试，纯文档/配置说明替代检查；证据至少命令+输出，必要时截图或 hash；缺失视为未完成。
+7 提交与收尾：一次一件事，不批量重排/改缩进/重命名；前缀带 scope；说明含改了什么、影响、验证、遗留，文档带文件与锚点；状态更新 STATUS；有远端副本时约定权威/镜像/禁 force 并做收尾检查；口头约定落文件。
 8 子目录规则：不设子目录 AGENTS.md；局部规则写进本节或在 docs 定义后引用。
 
 - [ ] **Step 5: 写 `ENVIRONMENTS.md.tmpl`**
@@ -348,7 +348,7 @@ git commit -m "feat(tools): env 判定与链接检查模板"
 
 **Interfaces:**
 - Consumes: Task 2–4 的全部模板
-- Produces: `lib.sh` 的 `esc` / `render_file` / `ensure_dir` / `chmod_600` / `chmod_exec` / `append_gitignore`；`init.sh --target DIR --name S --one-liner S --stack S [--date D] [--apply]`，0 成功 / 1 预检失败 / 2 用法错误
+- Produces: `lib.sh` 的 `esc` / `render_file` / `ensure_dir` / `chmod_600` / `chmod_exec` / `append_gitignore`；`init.sh --target DIR --name S --one-liner S --stack S [--date D] [--env E] [--role R] [--apply]`，0 成功 / 1 预检失败 / 2 用法错误
 
 - [ ] **Step 1: 写 `test-init.sh`（会失败）**
 
@@ -422,7 +422,7 @@ Expected: FAIL。
 
 - [ ] **Step 3: 实现 `check.sh`**
 
-检查 15 个文件齐全；只扫 15 个生成文件的 `{{` 残留；`docs/decisions/` 至少一个 `D-*.md`；`env` 三键合法、权限 600、`.gitignore` 含 `/env`；调用 `$DIR/tools/check-links.sh "$DIR"`；逐项 ok/FAIL，任一失败 exit 1。
+检查 15 个文件齐全；只扫 15 个生成文件的 `{{` 残留；STATUS 四节齐全；ENVIRONMENTS §7/§8 每条 bullet 有值；`docs/decisions/` 至少一个 `D-*.md` 且都在索引；`env` 三键合法、600、`.gitignore` 含 `/env`；调用 `$DIR/tools/check-links.sh "$DIR"`；逐项 ok/FAIL，任一失败 exit 1。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -600,7 +600,11 @@ Expected: 全 ok，退出码 0。
 
 ~~~bash
 bash project-constraints/scripts/init.sh --target .scratch/e2e-new --name "示例项目" \
-  --one-liner "验证 new 模式" --stack "TypeScript / Node 22" --apply
+  --one-liner "验证 new 模式" --stack "TypeScript / Node 22" --env local --role authoring --apply
+sed -i 's/^- 本地可跑：.*/- 本地可跑：npm run check/' .scratch/e2e-new/ENVIRONMENTS.md
+sed -i 's/^- 必须在远端跑：.*/- 必须在远端跑：无/' .scratch/e2e-new/ENVIRONMENTS.md
+sed -i 's/^- 主机与部署根：.*/- 主机与部署根：localhost/' .scratch/e2e-new/ENVIRONMENTS.md
+sed -i 's/^- 数据库：.*/- 数据库：无/' .scratch/e2e-new/ENVIRONMENTS.md
 bash project-constraints/scripts/check.sh .scratch/e2e-new
 (cd .scratch/e2e-new && bash tools/env.sh)
 ~~~

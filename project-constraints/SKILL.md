@@ -17,7 +17,7 @@ description: 当用户要为新建项目建立工程约束（AGENTS、环境判�
 
 1. 预检：已有任一目标文件就停；目录非空先列出并确认。
 2. 一次问完：项目名、一句话目标、技术栈、环境、验证在哪跑。
-3. 预览：`bash <技能目录>/scripts/init.sh --target . --name … --one-liner … --stack …`
+3. 预览：`bash <技能目录>/scripts/init.sh --target . --name … --one-liner … --stack … --env … --role …`（默认 local/authoring）
 4. 写入：加 `--apply`；补写 AGENTS §1/§4、docs/spec/00-overview.md、ENVIRONMENTS §7/§8 与矩阵。
 5. 验收：`bash <技能目录>/scripts/check.sh .` 全过，贴清单与输出。
 

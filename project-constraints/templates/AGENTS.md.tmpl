@@ -9,14 +9,14 @@
 ## 1 身份与边界
 
 - 这个仓是干什么的，以 `docs/spec/00-overview.md` 为准；本文件不重复业务描述。
-- 默认只改当前任务需要的文件；业务范围的扩大需要用户明确请求。
-- 归档与历史快照只读，不改写。
-- 不写 token、密码、私钥；凭据只在项目指定的授权文件里，且只读。
+- 默认只改当前任务需要的文件。"扩大范围"指：改 API 契约、改别人负责的模块、加依赖、改目录结构；这些先问。
+- 归档与历史快照（若存在）只读，不改写。
+- 凭据规则见 [ENVIRONMENTS.md](ENVIRONMENTS.md) §6；本文件不复制。
 
 ## 2 环境与声明
 
 - 环境判定顺序见 [ENVIRONMENTS.md](ENVIRONMENTS.md)。
-- 每条回复首行写：ENV=<local|testing|staging|prod> · ROLE=<authoring|app|ci> · ROOT=<绝对路径> · 依据=<env|none>
+- 会话第一条回复首行写：ENV=<local|testing|staging|prod> · ROLE=<authoring|app|ci> · ROOT=<绝对路径> · 依据=<env|none>；环境变化时更新这一行。
 - 运行 `bash tools/env.sh`，若输出 ENV=unknown，停止并询问用户，不得猜。
 
 ## 3 开工顺序
@@ -30,7 +30,7 @@
 ## 4 硬红线
 
 - 每个环境的允许与禁止见 [ENVIRONMENTS.md](ENVIRONMENTS.md) §5 红线；越界命令先问。
-- 凭据只在授权文件里，只读；日志、截图、提交、聊天里都不得出现。
+- 凭据：见 [ENVIRONMENTS.md](ENVIRONMENTS.md) §6（不进日志/截图/提交/聊天，只在授权文件且只读）。
 - unknown 环境下不执行写操作，也不执行会改变远端状态的命令。
 - 未经用户同意，不删除、不移动已有文件。
 
@@ -40,20 +40,22 @@
 - 规范不引用证据；证据可以引用规范。
 - 口径变更先立 D-xxx；冲突登记 C-xxx（写在 docs/decisions/README.md 的冲突表），不擅自裁决。
 - 文件名 ASCII，标题中文。
-- spec 单篇上限 600 行，超过按主题拆分。
+- spec 单篇目标 300–600 行、上限 600，超过按主题拆分；细节见 [docs/spec/README.md](docs/spec/README.md)。
 - 证据带日期与状态；旧结论不静默改写。
 
 ## 6 验证与证据
 
-- 行为变更先写失败测试，确认失败原因，再实现。
-- 证据四件套：命令、输出、截图或 hash；缺失视为未完成。
+- 行为变更先写失败测试，确认失败原因，再实现；纯文档或配置改动没有测试可写时，说明替代检查。
+- 证据：命令 + 输出是必须的；需要时补截图或 hash。缺失视为未完成。
 - 哪一层验证在哪跑，见 [ENVIRONMENTS.md](ENVIRONMENTS.md) §7。
 
 ## 7 提交与收尾
 
-- 一次提交只做一件事；前缀 `feat` / `fix` / `test` / `docs` / `chore`，带 scope。
-- 提交说明写：改了什么、影响面、验证命令与结果、遗留。
+- 一次提交只做一件事；不批量重排、不批量改缩进、不顺手重命名。
+- 前缀 `feat` / `fix` / `test` / `docs` / `chore`，带 scope。
+- 提交说明写：改了什么、影响面、验证命令与结果、遗留；文档改动带文件与章节锚点。
 - 每次状态变化更新 [STATUS.md](STATUS.md)。
+- 若项目有远端副本：应用机为提交权威、本地为镜像、禁止 force；同步脚本与排除项写进 docs/ops。会话结束检查本地/远端 git status 与待推数量，并记进 STATUS。
 - 口头约定必须落文件，不留在会话里。
 
 ## 8 子目录规则

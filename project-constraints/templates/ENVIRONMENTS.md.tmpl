@@ -29,18 +29,20 @@ ROOT=/abs/path/to/project
 
 ## 4 取值
 
-只接受四个规范值：`local` / `testing` / `staging` / `prod`。其他写法（development、test、stage 等）一律视为非法，先改成规范值再运行。
+取值只接受四个规范值：`local` / `testing` / `staging` / `prod`。允许引号与 export 前缀（`ENV="local"`、`export ENV=local`）；其他取值（development、test、stage 等）视为非法，先改成规范值。
 
 ## 5 红线
 
 | 环境 | 允许 | 禁止 |
 | --- | --- | --- |
-| local | 编辑、只读检查、本地可跑的验证 | 写凭据、向测试/生产环境写入 |
-| testing | 只读命令、一次性库测试 | 写业务数据 |
+| local | 编辑、只读命令、§7 声明的本地验证 | 写凭据、向非 local 环境写入 |
+| testing | 只读命令、可回滚的测试库操作 | 共享 testing 库的业务数据、生产数据 |
 | staging | 按发布单冒烟、迁移演练 | 未走变更单的写操作 |
 | prod | 按发布单发布、回滚 | 手工试验、直接改库 |
 
 ## 6 凭据
+
+本文件是凭据规则的唯一出处。
 
 - 不进仓库、不进聊天、不进截图。
 - 只在项目指定的授权文件里，权限 600，AI 只读。
@@ -48,10 +50,14 @@ ROOT=/abs/path/to/project
 
 ## 7 验证位置
 
+生成后必须填写；空值时 check.sh 报错。
+
 - 本地可跑：
 - 必须在远端跑：
 
 ## 8 本项目事实
+
+生成后必须填写；空值时 check.sh 报错。
 
 - 主机与部署根：
 - 数据库：
