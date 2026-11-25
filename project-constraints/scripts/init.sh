@@ -29,11 +29,10 @@ done
 
 FILES="AGENTS.md ENVIRONMENTS.md STATUS.md README.md env env.example .gitignore docs/spec/README.md docs/spec/00-overview.md docs/decisions/README.md docs/decisions/D-001.md docs/evidence/README.md docs/ops/README.md tools/env.sh tools/check-links.sh"
 
-
 existing=""
 for f in $FILES; do
   if [ "$f" = ".gitignore" ]; then continue; fi
-  if [ -e "$TARGET/$f" ]; then existing="$existing $f"; fi
+  if path_exists "$TARGET/$f"; then existing="$existing $f"; fi
 done
 
 if [ "$APPLY" -eq 0 ]; then
@@ -53,23 +52,33 @@ fi
 mkdir -p "$TARGET"
 ROOT=$(cd "$TARGET" && pwd)
 
+gitignore_existed=0
+if path_exists "$TARGET/.gitignore"; then gitignore_existed=1; fi
+
+created=0
 for f in $FILES; do
   if [ "$f" = ".gitignore" ]; then continue; fi
   if [ "$f" = "env" ]; then continue; fi
   tmpl=$(tmpl_for "$f")
   if [ -z "$tmpl" ]; then printf 'no template for %s\n' "$f" >&2; exit 1; fi
   render_file "$SKILL_DIR/templates/$tmpl" "$TARGET/$f"
+  created=$((created+1))
 done
 
 printf 'ENV=local\nROLE=authoring\nROOT=%s\n' "$ROOT" > "$TARGET/env"
 chmod_600 "$TARGET/env"
+created=$((created+1))
 chmod_exec "$TARGET/tools/env.sh" "$TARGET/tools/check-links.sh"
-append_gitignore "$TARGET" "$SKILL_DIR/templates/gitignore.append"
 
-n=0
-for f in $FILES; do n=$((n+1)); done
-printf '已创建 %s 个文件：\n' "$n"
+if [ "$gitignore_existed" -eq 0 ]; then
+  cp "$SKILL_DIR/templates/gitignore.append" "$TARGET/.gitignore"
+  created=$((created+1))
+else
+  append_gitignore "$TARGET" "$SKILL_DIR/templates/gitignore.append"
+fi
+
+printf '已创建 %s 个文件：\n' "$created"
 for f in $FILES; do echo_item "$TARGET/$f"; done
 printf '\n下一步：\n'
-printf '  1. 补写 README 文档地图、AGENTS §1/§4、docs/spec/00-overview.md\n'
+printf '  1. 补写 AGENTS §1/§4、docs/spec/00-overview.md、ENVIRONMENTS §7/§8\n'
 printf '  2. bash scripts/check.sh %s\n' "$TARGET"

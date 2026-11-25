@@ -105,8 +105,7 @@ project-constraints/
 │   ├── adopt.sh           # adopt：扫描 + 报告 + 只补缺失
 │   └── check.sh
 ├── references/
-│   ├── conventions.md
-│   └── example-mapping.md
+│   └── conventions.md
 └── tests/
     ├── run.sh
     ├── test-templates.sh  test-tools.sh  test-init.sh
@@ -139,7 +138,7 @@ SKILL.md 约束：
 
 ### 5.2 new（五步）
 
-预检：已有 `AGENTS.md` → 停止；已有 `docs/` → 列出并确认后只补建缺失；目录非空 → 列出并确认；不自动 `git init`。
+预检：已有任一目标文件（含悬空符号链接）→ 停止并列出；目录非空但无目标文件 → 列出并确认；不自动 `git init`。
 
 1. 问 5 个问题（一次问完）：项目名、一句话目标、技术栈、环境（仅 local / +远程机 / +staging / +prod）、验证在哪跑。
 2. dry-run：`bash scripts/init.sh --target . --name … --one-liner … --stack …`，列出将创建的文件。
@@ -150,10 +149,10 @@ SKILL.md 约束：
 ### 5.3 adopt（六步）
 
 1. 问扫描级别（三档，推荐 standard）。
-2. `bash scripts/adopt.sh --target . --scan standard`：只出报告，不写文件。
+2. `mkdir -p notes` 后 `bash scripts/adopt.sh --target . --scan standard --report notes/adopt-report.md`：只出报告，不写生成物。
 3. Agent 读扫描到的文件，把"冲突裁决"表填满：冲突点 / 现有原文（文件:行）/ 模板要求 / 选项 / 建议。
-4. 逐条问用户：A/B/C/D 选哪个；是否写决策记录；是否在现有 AGENTS.md 末尾追加引用段。
-5. `--apply` 只创建缺失文件；B/C/D 由 Agent 按选择手工执行（先 `cp` 备份为 `*.bak`）。
+4. 逐条问用户：A/B/C/D 选哪个；是否写决策记录；是否在现有 AGENTS.md 末尾追加引用段；确认 ENV/ROLE。
+5. `--apply` 只创建缺失文件；`env` 缺失时必须给 `--env`/`--role`；B/C/D 由 Agent 按选择手工执行（先 `cp` 备份为 `*.bak`）。`.gitignore` 是唯一允许改的已有文件：只追加 `/env`。
 6. 写或补决策记录（D-001 或下一个编号）；`check.sh`；报告创建数、跳过数、已裁决冲突数、阻塞项。
 
 ### 5.4 扫描三档
@@ -203,16 +202,17 @@ SKILL.md 约束：
 ### 6.3 adopt.sh
 
 - 用法 `bash scripts/adopt.sh --target DIR [--scan quick|standard|full] [--report FILE] [--apply] [--name S] [--one-liner S] [--stack S] [--env E] [--role R]`。
-- 默认 `--scan standard`、只读；`--report` 把报告写入新文件（已存在则拒绝）。
+- 默认 `--scan standard`、只读；`--report` 写新文件，父目录不存在则创建，文件已存在则拒绝。
 - 退出码：0 报告生成或应用成功；1 目标不存在/不可写；2 用法错误（含非法 scan 值）。
 - 报告固定小节：`## 已有（跳过）`、`## 将创建（缺失）`、`## 结构发现`、`## 冲突裁决`、`## 阻塞项`、`## 下一步`。
 - `--apply`：只创建缺失文件，打印 `created=` / `skipped=` 计数；已有文件不读不写。
 - `--apply` 且 `AGENTS.md` 缺失时 `--name` / `--one-liner` / `--stack` 必填；只出报告时用默认值（目录名 / 待补写）。
+- `--apply` 且 `env` 缺失时 `--env` / `--role` 必填且取值合法；已有 `.gitignore` 只追加 `/env`（换行安全，不跟随符号链接），其余已有文件不读不写。
 
 ### 6.4 check.sh
 
 - 用法 `bash scripts/check.sh DIR`。
-- 检查：15 个文件齐全；生成文件中无 `{{…}}` 残留；`docs/decisions/` 至少一个 `D-*.md`；`env` 存在时三键齐全且取值合法；调用 `$DIR/tools/check-links.sh "$DIR"`。
+- 检查：15 个文件齐全；15 个生成文件中无 `{{…}}` 残留（不扫用户文件）；`docs/decisions/` 至少一个 `D-*.md`；`env` 的 `ENV`/`ROLE`/`ROOT` 合法、权限 600、`.gitignore` 含 `/env`；调用 `$DIR/tools/check-links.sh "$DIR"`。
 - 逐项 ok/FAIL 与计数，任一失败 exit 1。
 
 ## 7 验证

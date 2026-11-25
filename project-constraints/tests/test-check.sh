@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 T="$(cd "$(dirname "$0")/.." && pwd)"
-D="$T/.scratch/check"; rm -rf "$D"; mkdir -p "$D"
+R="$(cd "$T/.." && pwd)"
+D="$R/.scratch/check"; rm -rf "$D"; mkdir -p "$D"
 fail=0
 ok()  { printf 'ok   %s\n' "$1"; }
 bad() { printf 'FAIL %s\n' "$1"; fail=1; }
@@ -26,5 +27,25 @@ out=$(bash "$T/scripts/check.sh" "$D/d" 2>&1); rc=$?
 gen "$D/e"; rm "$D/e/docs/decisions/D-001.md"
 out=$(bash "$T/scripts/check.sh" "$D/e" 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"FAIL"* ]] && ok "缺决策" || bad "缺决策未报: rc=$rc"
+
+gen "$D/f"; sed -i 's/^ROLE=.*/ROLE=hacker/' "$D/f/env"
+out=$(bash "$T/scripts/check.sh" "$D/f" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"ROLE 非法"* ]] && ok "非法 ROLE" || bad "非法 ROLE 未报"
+
+gen "$D/g"; sed -i 's|^ROOT=.*|ROOT=|' "$D/g/env"
+out=$(bash "$T/scripts/check.sh" "$D/g" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"ROOT"* ]] && ok "空 ROOT" || bad "空 ROOT 未报"
+
+gen "$D/h"; chmod 644 "$D/h/env"
+out=$(bash "$T/scripts/check.sh" "$D/h" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *"权限"* ]] && ok "env 权限" || bad "env 权限未报"
+
+gen "$D/i"; grep -v '^/env$' "$D/i/.gitignore" > "$D/i/.gitignore.tmp"; mv "$D/i/.gitignore.tmp" "$D/i/.gitignore"
+out=$(bash "$T/scripts/check.sh" "$D/i" 2>&1); rc=$?
+[[ $rc -ne 0 && "$out" == *".gitignore"* ]] && ok "缺 /env" || bad "缺 /env 未报"
+
+gen "$D/j"; mkdir -p "$D/j/src"; printf '{{TOKEN}}\n' > "$D/j/src/t.txt"
+out=$(bash "$T/scripts/check.sh" "$D/j" 2>&1); rc=$?
+[[ $rc -eq 0 ]] && ok "用户文件里的占位符不算" || bad "误报用户文件: $out"
 
 exit "$fail"

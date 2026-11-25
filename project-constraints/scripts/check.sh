@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-DIR=${1:-.}
+DIR=.
+if [ $# -gt 0 ]; then DIR=$1; fi
 fail=0
 ok() { printf 'ok   %s\n' "$1"; }
 bad() { printf 'FAIL %s\n' "$1"; fail=1; }
@@ -14,12 +15,14 @@ for f in $FILES; do
 done
 if [ "$missing" -eq 0 ]; then ok "文件齐全（15）"; fi
 
-if grep -rqE '\{\{' "$DIR" --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor 2>/dev/null; then
-  bad "存在 {{ }} 残留"
-  grep -rlE '\{\{' "$DIR" --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor 2>/dev/null | head -5 | sed 's/^/     /'
-else
-  ok "无占位符残留"
-fi
+placeholder=0
+for f in $FILES; do
+  if [ -f "$DIR/$f" ] && grep -qE '\{\{' "$DIR/$f"; then
+    bad "占位符残留 $f"
+    placeholder=$((placeholder+1))
+  fi
+done
+if [ "$placeholder" -eq 0 ]; then ok "无占位符残留"; fi
 
 if ls "$DIR"/docs/decisions/D-*.md >/dev/null 2>&1; then
   ok "有决策记录"
@@ -28,11 +31,17 @@ else
 fi
 
 if [ -f "$DIR/env" ]; then
-  e=$(sed -n 's/^ENV=//p' "$DIR/env" | head -1)
-  case "$e" in
-    local|testing|staging|prod) ok "env 合法（$e）" ;;
-    *) bad "env 非法（$e）" ;;
-  esac
+  kv() {
+    sed -n "s/^[[:space:]]*\(export[[:space:]]\+\)\?$1[[:space:]]*=[[:space:]]*//p" "$DIR/env" \
+      | head -n1 | sed -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//'
+  }
+  e=$(kv ENV); r=$(kv ROLE); rt=$(kv ROOT)
+  case "$e" in local|testing|staging|prod) ok "ENV=$e" ;; *) bad "ENV 非法（$e）" ;; esac
+  case "$r" in authoring|app|ci) ok "ROLE=$r" ;; *) bad "ROLE 非法（$r）" ;; esac
+  case "$rt" in /*) ok "ROOT 是绝对路径" ;; *) bad "ROOT 不是绝对路径（$rt）" ;; esac
+  mode=$(stat -c %a "$DIR/env" 2>/dev/null || printf '?')
+  if [ "$mode" = "600" ]; then ok "env 权限 600"; else bad "env 权限（$mode）"; fi
+  if grep -qx '/env' "$DIR/.gitignore" 2>/dev/null; then ok ".gitignore 忽略 /env"; else bad ".gitignore 缺 /env"; fi
 fi
 
 if [ -f "$DIR/tools/check-links.sh" ]; then

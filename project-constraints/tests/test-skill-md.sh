@@ -14,9 +14,10 @@ desc=$(grep '^description: ' "$F")
 for h in '## 概述' '## 模式判断' '## new 五步' '## adopt 六步' '## 常见错误' '## 自检'; do
   grep -qx "$h" "$F" && ok "标题 $h" || bad "标题 $h"
 done
-grep -q 'scripts/init.sh' "$F" && ok "引用 init" || bad "引用 init"
-grep -q 'scripts/adopt.sh' "$F" && ok "引用 adopt" || bad "引用 adopt"
-grep -q 'scripts/check.sh' "$F" && ok "引用 check" || bad "引用 check"
+grep -q '<技能目录>/scripts/init.sh' "$F" && ok "init 用技能目录" || bad "init 未用技能目录"
+grep -q '<技能目录>/scripts/adopt.sh' "$F" && ok "adopt 用技能目录" || bad "adopt 未用技能目录"
+grep -q '<技能目录>/scripts/check.sh' "$F" && ok "check 用技能目录" || bad "check 未用技能目录"
+grep -q -- '--env/--role' "$F" && ok "写明 env 参数" || bad "未写 env 参数"
 body=$(awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$F")
 chars=$(printf '%s' "$body" | wc -m)
 [[ "$chars" -le 1500 ]] && ok "正文长度 $chars" || bad "正文过长 $chars"

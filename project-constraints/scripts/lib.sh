@@ -19,12 +19,24 @@ ensure_dir() { mkdir -p "$1"; }
 chmod_600() { chmod 600 "$1"; }
 chmod_exec() { chmod +x "$@"; }
 
+# 存在即算存在，包括悬空符号链接（避免重定向创建到链接目标）。
+path_exists() { [ -e "$1" ] || [ -L "$1" ]; }
+
 append_gitignore() {
-  local target=$1 file=$2 line
+  local target=$1 file=$2 line last
+  if [ -L "$target/.gitignore" ]; then
+    printf '拒绝写入符号链接 .gitignore: %s\n' "$target/.gitignore" >&2
+    return 1
+  fi
   touch "$target/.gitignore"
   while IFS= read -r line; do
     [ -z "$line" ] && continue
-    grep -qxF "$line" "$target/.gitignore" || printf '%s\n' "$line" >> "$target/.gitignore"
+    grep -qxF "$line" "$target/.gitignore" && continue
+    if [ -s "$target/.gitignore" ]; then
+      last=$(tail -c 1 "$target/.gitignore" | od -An -t x1 | tr -d ' \n')
+      if [ "$last" != "0a" ]; then printf '\n' >> "$target/.gitignore"; fi
+    fi
+    printf '%s\n' "$line" >> "$target/.gitignore"
   done < "$file"
 }
 

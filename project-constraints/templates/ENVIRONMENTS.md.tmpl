@@ -27,14 +27,9 @@ ROLE=authoring
 ROOT=/abs/path/to/project
 ```
 
-## 4 取值映射
+## 4 取值
 
-| 来源值 | 映射 |
-| --- | --- |
-| local / development | local |
-| testing / test | testing |
-| staging / stage | staging |
-| production / prod | prod |
+只接受四个规范值：`local` / `testing` / `staging` / `prod`。其他写法（development、test、stage 等）一律视为非法，先改成规范值再运行。
 
 ## 5 红线
 

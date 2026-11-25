@@ -14,7 +14,7 @@
 
 - 生成物 15 个文件；模板 14 个（`env` 由脚本生成）。
 - 只允许 4 个变量：`{{PROJECT_NAME}}`、`{{ONE_LINER}}`、`{{STACK}}`、`{{DATE}}`。
-- 环境文件名固定 `env`，三键 `ENV` / `ROLE` / `ROOT`，权限 600，写入 `.gitignore`。
+- 环境文件名固定 `env`，三键 `ENV` / `ROLE` / `ROOT`，权限 600，写入 `.gitignore`；adopt 对已有 `.gitignore` 只追加 `/env`（唯一例外）。
 - 不生成子目录 AGENTS.md、空 spec 文件、CI、文档站、hook。
 - 文档中文，文件名 ASCII；技能名 `project-constraints`；SKILL.md 正文 ≤ 500 词（≤ 1500 字符）。
 - 禁止出现 `QTV`、`trader-plan2`、`43.106.83.160`、`AutoTrader`、`.qtv-env`、任何密钥样例。
@@ -385,7 +385,7 @@ Expected: FAIL，`scripts/init.sh` 不存在。
 
 - [ ] **Step 4: 实现 `init.sh`**
 
-`SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"`；source lib；解析参数；校验三个必填；target 不存在时在 `--apply` 前 `mkdir -p`；`--apply` 前检查 14 个目标路径（`.gitignore` 除外）是否已存在，任一存在则列出并 exit 1；渲染 14 个模板；生成 `env`（`ENV=local` / `ROLE=authoring` / `ROOT=<先 cd 再 pwd>`）并 `chmod 600`；`tools/*.sh` 加执行位；追加 `.gitignore`；输出清单与下一步。
+`SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"`；source lib；解析参数；校验三个必填；target 不存在时在 `--apply` 前 `mkdir -p`；存在判断含悬空符号链接（`-e` 或 `-L`）；`--apply` 前检查 14 个目标路径（`.gitignore` 除外）是否已存在，任一存在则列出并 exit 1；渲染 14 个模板；生成 `env`（`ENV=local` / `ROLE=authoring` / `ROOT=<先 cd 再 pwd>`）并 `chmod 600`；`tools/*.sh` 加执行位；追加 `.gitignore`；输出清单与下一步。
 
 - [ ] **Step 5: 跑测试确认通过**
 
@@ -422,7 +422,7 @@ Expected: FAIL。
 
 - [ ] **Step 3: 实现 `check.sh`**
 
-检查 15 个文件齐全；`grep -rE '\{\{'` 无残留；`docs/decisions/` 至少一个 `D-*.md`；`env` 存在时三键合法；调用 `$DIR/tools/check-links.sh "$DIR"`；逐项 ok/FAIL，任一失败 exit 1。
+检查 15 个文件齐全；只扫 15 个生成文件的 `{{` 残留；`docs/decisions/` 至少一个 `D-*.md`；`env` 三键合法、权限 600、`.gitignore` 含 `/env`；调用 `$DIR/tools/check-links.sh "$DIR"`；逐项 ok/FAIL，任一失败 exit 1。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -499,7 +499,7 @@ Expected: FAIL。
 
 - [ ] **Step 4: 实现 `adopt.sh` 的 `--apply`**
 
-只创建缺失文件：渲染、`chmod 600 env`、`chmod_exec tools`、追加 `.gitignore`；已有路径不读不写；打印 `created=N` 与 `skipped=M`。`--apply` 且 `AGENTS.md` 缺失时三个必填校验；只出报告时用默认值。`--report` 目标已存在则拒绝（exit 1）。
+只创建缺失文件：渲染、`chmod 600 env`、`chmod_exec tools`；`.gitignore` 缺失则创建、已存在则只追加 `/env`（换行安全、不跟随符号链接）；其余已有路径不读不写；打印 `created=N` 与 `skipped=M`。`--apply` 且 `AGENTS.md` 缺失时三个必填校验；`--apply` 且 `env` 缺失时 `--env`/`--role` 必填并校验取值。`--report` 父目录自动创建、已存在则拒绝（exit 1）。
 
 - [ ] **Step 5: 跑测试确认通过**
 
@@ -520,7 +520,6 @@ git commit -m "feat(adopt): 扫描、报告与只补缺失"
 **Files:**
 - Create: `project-constraints/SKILL.md`
 - Create: `project-constraints/references/conventions.md`
-- Create: `project-constraints/references/example-mapping.md`
 - Create: `project-constraints/tests/test-skill-md.sh`
 
 **Interfaces:**
@@ -545,9 +544,10 @@ desc=$(grep '^description: ' "$F")
 for h in '## 概述' '## 模式判断' '## new 五步' '## adopt 六步' '## 常见错误' '## 自检'; do
   grep -qx "$h" "$F" && ok "标题 $h" || bad "标题 $h"
 done
-grep -q 'scripts/init.sh' "$F" && ok "引用 init" || bad "引用 init"
-grep -q 'scripts/adopt.sh' "$F" && ok "引用 adopt" || bad "引用 adopt"
-grep -q 'scripts/check.sh' "$F" && ok "引用 check" || bad "引用 check"
+grep -q '<技能目录>/scripts/init.sh' "$F" && ok "init 用技能目录" || bad "init 未用技能目录"
+grep -q '<技能目录>/scripts/adopt.sh' "$F" && ok "adopt 用技能目录" || bad "adopt 未用技能目录"
+grep -q '<技能目录>/scripts/check.sh' "$F" && ok "check 用技能目录" || bad "check 未用技能目录"
+grep -q -- '--env/--role' "$F" && ok "写明 env 参数" || bad "未写 env 参数"
 body=$(awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$F")
 [[ "$(printf '%s' "$body" | wc -m)" -le 1500 ]] && ok "正文长度" || bad "正文过长"
 [[ -f "$T/references/conventions.md" ]] && ok "conventions" || bad "conventions"
@@ -562,22 +562,18 @@ Expected: FAIL。
 
 - [ ] **Step 3: 写 `SKILL.md`**
 
-frontmatter 用 spec §3 原文。正文：概述 2 句；模式判断（检测提示 + 必须问用户）；new 五步；adopt 六步；五个必问；常见错误表（覆盖 `notes/red-baseline.md` 两段缺失项）；自检 5 条；指向 `templates/`、`scripts/`、`references/`。
+frontmatter 用 spec §3 原文。正文：概述 2 句；模式判断（检测提示 + 必须问用户）；new 五步（五个必问并入第 2 步）；adopt 六步（含 `--env/--role` 与 `.gitignore` 例外）；常见错误（覆盖 `notes/red-baseline.md` 两段缺失项）；自检 5 条；指向 `references/`。命令一律写 `<技能目录>/scripts/...`。
 
 - [ ] **Step 4: 写 `references/conventions.md`**
 
 六条原则（单一出处、spec 不引用证据、决策留痕、环境先声明、状态只写现在、证据可过期）+ 常见误区表（≥ 8 行，泛化自 trader-plan2 conventions §11）+ 与旧做法差异。
 
-- [ ] **Step 5: 写 `references/example-mapping.md`**
-
-表格：生成文件 → trader-plan2 对应文件 → 剥掉了什么。至少覆盖 AGENTS、ENVIRONMENTS、STATUS、README、docs/spec、docs/decisions、docs/evidence、tools/env.sh。
-
-- [ ] **Step 6: 跑测试确认通过**
+- [ ] **Step 5: 跑测试确认通过**
 
 Run: `bash project-constraints/tests/test-skill-md.sh`
 Expected: 全 ok。
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 6: 提交**
 
 ~~~bash
 git add project-constraints/SKILL.md project-constraints/references project-constraints/tests/test-skill-md.sh
@@ -620,7 +616,7 @@ bash project-constraints/scripts/adopt.sh --target .scratch/e2e-adopt \
   --scan standard --report notes/adopt-report.md
 ~~~
 
-然后由执行者按 SKILL.md 第 3 步读文件、填"冲突裁决"表：至少两行（推送规则、测试位置），每行有现有原文、选项、建议。再跑 `--apply`，最后 `check.sh`。
+然后由执行者按 SKILL.md 第 3 步读文件、填"冲突裁决"表：至少两行（推送规则、测试位置），每行有现有原文、选项、建议。再跑 `--apply --env local --role authoring --one-liner "验证 adopt 模式" --stack "TypeScript / Node 22"`，最后 `check.sh`。
 
 重跑前删掉 `notes/adopt-report.md`。Expected: 已有三个文件 sha256 不变；缺失文件补齐；报告冲突表两行且都有建议。
 

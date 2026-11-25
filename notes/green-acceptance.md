@@ -49,3 +49,17 @@
 1. **STATUS 下一步与 README 冲突**：模板要求"在 README 登记文档地图"，但 README 模板已含地图；cold-new 指出后改为"填写 ENVIRONMENTS §7 验证位置与 §8 本项目事实"，并同步 SKILL.md 第 4 步与 spec。
 2. **adopt 只读报告被强制要参数**：`--name/--one-liner/--stack` 原在缺 AGENTS.md 时无条件必填，导致纯报告要参数；改为仅 `--apply` 时必填（spec §6.3 同步）。
 3. **测试假通过**：init/check 的否定断言原本只看退出码，脚本缺失也会通过；改为同时匹配输出里的"已存在"/"FAIL"。
+
+## 复盘修复后复跑（2026-11-25 晚）
+
+- 套件：test-adopt 16 / test-check 10 / test-init 10 / test-skill-md 17 / test-templates 33 / test-tools 5，全过。
+- new e2e：`check: OK`；`tools/env.sh` 输出 ENV=local / ROLE=authoring / 绝对 ROOT。
+- adopt e2e：17 个文件，created=13 skipped=2；AGENTS/README/.cursorrules 的 sha256 与接入前一致；`check: OK`；env=local。
+- 本轮修复（对照评审）：
+  1. SKILL 命令改为 `<技能目录>/scripts/...`，报告父目录自动创建。
+  2. adopt 缺 env 时强制 `--env/--role` 并校验取值；已有 `.gitignore` 只追加 `/env`，且补换行。
+  3. `-e` 改为 `-e 或 -L`，悬空符号链接不再能把写入引到目标外。
+  4. 移除包内的 trader-plan2 映射（移到 `notes/`），测试全包扫描禁用标识。
+  5. check 校验 ENV/ROLE/ROOT、600、`/env`；占位符只扫 15 个生成文件。
+  6. C-xxx 落到 `docs/decisions/README.md` 的冲突表；D-001 来源改指仓库内文件。
+  7. 测试临时目录移到仓库 `.scratch/`，安装包内不再残留。

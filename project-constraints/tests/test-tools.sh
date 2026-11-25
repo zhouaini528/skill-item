@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 T="$(cd "$(dirname "$0")/.." && pwd)"
-W="$T/.scratch/tools"; rm -rf "$W"; mkdir -p "$W/p1/tools" "$W/p1/sub"
+R="$(cd "$T/.." && pwd)"
+W="$R/.scratch/tools"; rm -rf "$W"; mkdir -p "$W/p1/tools" "$W/p1/sub"
 cp "$T/templates/tools/env.sh.tmpl" "$W/p1/tools/env.sh"
 cp "$T/templates/tools/check-links.sh.tmpl" "$W/p1/tools/check-links.sh"
 chmod +x "$W/p1/tools/"*.sh

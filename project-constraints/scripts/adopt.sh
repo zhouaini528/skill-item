@@ -29,29 +29,43 @@ while [ $# -gt 0 ]; do
 done
 
 case "$SCAN" in quick|standard|full) ;; *) printf '非法 --scan: %s\n' "$SCAN" >&2; usage ;; esac
+case "$F_ENV" in ""|local|testing|staging|prod) ;; *) printf '非法 --env: %s\n' "$F_ENV" >&2; usage ;; esac
+case "$F_ROLE" in ""|authoring|app|ci) ;; *) printf '非法 --role: %s\n' "$F_ROLE" >&2; usage ;; esac
 
 [ -d "$TARGET" ] || { printf '目标不存在: %s\n' "$TARGET" >&2; exit 1; }
 [ -w "$TARGET" ] || { printf '目标不可写: %s\n' "$TARGET" >&2; exit 1; }
 
 ROOT=$(cd "$TARGET" && pwd)
 DATE=$(date +%F)
-PROJECT_NAME=${F_NAME:-$(basename "$ROOT")}
-ONE_LINER=${F_ONE:-（待补写）}
-STACK=${F_STACK:-（待补写）}
+PROJECT_NAME=$F_NAME
+[ -n "$PROJECT_NAME" ] || PROJECT_NAME=$(basename "$ROOT")
+ONE_LINER=$F_ONE
+[ -n "$ONE_LINER" ] || ONE_LINER=（待补写）
+STACK=$F_STACK
+[ -n "$STACK" ] || STACK=（待补写）
 
 if [ "$APPLY" -eq 1 ] && [ ! -f "$ROOT/AGENTS.md" ]; then
   if [ -z "$F_NAME" ] || [ -z "$F_ONE" ] || [ -z "$F_STACK" ]; then
-    printf '目标没有 AGENTS.md，--name / --one-liner / --stack 必填\n' >&2
+    printf '目标没有 AGENTS.md，--apply 需要 --name / --one-liner / --stack\n' >&2
     exit 2
   fi
 fi
 
-if [ -n "$REPORT" ] && [ -e "$REPORT" ]; then
-  printf '报告已存在，拒绝覆盖: %s\n' "$REPORT" >&2
-  exit 1
+if [ "$APPLY" -eq 1 ] && ! path_exists "$ROOT/env"; then
+  if [ -z "$F_ENV" ] || [ -z "$F_ROLE" ]; then
+    printf 'env 不存在，--apply 需要 --env / --role（先问用户，不猜）\n' >&2
+    exit 2
+  fi
 fi
 
-if [ -n "$REPORT" ]; then exec > "$REPORT"; fi
+if [ -n "$REPORT" ]; then
+  if path_exists "$REPORT"; then
+    printf '报告已存在，拒绝覆盖: %s\n' "$REPORT" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$REPORT")"
+  exec > "$REPORT"
+fi
 
 FILES="AGENTS.md ENVIRONMENTS.md STATUS.md README.md env env.example .gitignore docs/spec/README.md docs/spec/00-overview.md docs/decisions/README.md docs/decisions/D-001.md docs/evidence/README.md docs/ops/README.md tools/env.sh tools/check-links.sh"
 
@@ -65,11 +79,11 @@ printf '\n'
 printf '## 已有（跳过）\n\n'
 printf '| 路径 | 行数 | 建议 |\n| --- | --- | --- |\n'
 for f in $FILES; do
-  [ -e "$ROOT/$f" ] || continue
+  path_exists "$ROOT/$f" || continue
   lines=$(wc -l < "$ROOT/$f" 2>/dev/null || printf '0')
   case "$f" in
     AGENTS.md) note="保留；与模板八节逐条比对，冲突写进裁决表" ;;
-    .gitignore) note="保留；不追加，需自行合并缺失项" ;;
+    .gitignore) note="保留；只追加 /env（唯一例外）" ;;
     *) note="保留；确认职责是否与模板重叠" ;;
   esac
   printf '| %s | %s | %s |\n' "$f" "$lines" "$note"
@@ -79,14 +93,14 @@ printf '\n'
 printf '## 将创建（缺失）\n\n'
 printf '| 路径 |\n| --- |\n'
 for f in $FILES; do
-  [ -e "$ROOT/$f" ] || printf '| %s |\n' "$f"
+  path_exists "$ROOT/$f" || printf '| %s |\n' "$f"
 done
 printf '\n'
 
 printf '## 结构发现\n\n'
 printf '| 类型 | 路径 | 说明 |\n| --- | --- | --- |\n'
 row() { printf '| %s | %s | %s |\n' "$1" "$2" "$3"; }
-maybe_row() { if [ -e "$ROOT/$1" ]; then row "$2" "$1" "$3"; fi; }
+maybe_row() { if path_exists "$ROOT/$1"; then row "$2" "$1" "$3"; fi; }
 
 maybe_row CLAUDE.md "文档" "另一份 agent 规则，需比对"
 maybe_row CONTRIBUTING.md "文档" "贡献规则，与提交/验证规则比对"
@@ -121,11 +135,11 @@ printf '| --- | --- | --- | --- | --- | --- | --- |\n\n'
 
 printf '## 阻塞项\n\n'
 blockers=0
-if [ ! -f "$ROOT/env" ]; then
-  printf -- '- env 未建立：暂用 ENV=%s，需补写 ROLE/ROOT\n' "${F_ENV:-unknown}"
+if ! path_exists "$ROOT/env"; then
+  printf -- '- env 未建立：--apply 时必须给 --env/--role，不允许猜\n'
   blockers=$((blockers+1))
 fi
-if [ ! -f "$ROOT/STATUS.md" ]; then
+if ! path_exists "$ROOT/STATUS.md"; then
   printf -- '- 没有 STATUS：新会话无法判断当前阶段\n'
   blockers=$((blockers+1))
 fi
@@ -135,18 +149,18 @@ printf '\n'
 printf '## 下一步\n\n'
 printf '1. 逐条裁决冲突，选 A 保留 / B 合并 / C 旁路 / D 替换。\n'
 printf '2. 选 B 时先备份，再在现有文件末尾追加引用段。\n'
-printf '3. 补写 README 的一句话与技术栈（若显示"待补写"）。\n'
+printf '3. 补写 README 的一句话与技术栈、ENVIRONMENTS §7/§8（若显示"待补写"）。\n'
 printf '4. 运行 bash scripts/check.sh <目标>。\n'
 
 if [ "$APPLY" -eq 1 ]; then
   printf '\n## 本次写入\n\n'
   created=0; skipped=0
   for f in $FILES; do
-    if [ -e "$ROOT/$f" ]; then skipped=$((skipped+1)); continue; fi
+    if path_exists "$ROOT/$f"; then skipped=$((skipped+1)); continue; fi
     case "$f" in
       .gitignore) cp "$SKILL_DIR/templates/gitignore.append" "$ROOT/.gitignore" ;;
       env)
-        printf 'ENV=%s\nROLE=%s\nROOT=%s\n' "${F_ENV:-unknown}" "${F_ROLE:-authoring}" "$ROOT" > "$ROOT/env"
+        printf 'ENV=%s\nROLE=%s\nROOT=%s\n' "$F_ENV" "$F_ROLE" "$ROOT" > "$ROOT/env"
         chmod_600 "$ROOT/env"
         ;;
       *)
@@ -159,4 +173,15 @@ if [ "$APPLY" -eq 1 ]; then
     created=$((created+1))
   done
   printf -- '- created=%d skipped=%d\n' "$created" "$skipped"
+
+  if path_exists "$ROOT/.gitignore" && [ ! -L "$ROOT/.gitignore" ]; then
+    if grep -qx '/env' "$ROOT/.gitignore"; then
+      printf -- '- .gitignore 已含 /env\n'
+    else
+      append_gitignore "$ROOT" <(printf '/env\n')
+      printf -- '- .gitignore 追加 /env（唯一例外）\n'
+    fi
+  elif [ -L "$ROOT/.gitignore" ]; then
+    printf -- '- .gitignore 是符号链接，跳过追加\n'
+  fi
 fi
