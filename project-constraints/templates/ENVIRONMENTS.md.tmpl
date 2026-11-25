@@ -1,0 +1,62 @@
+# ENVIRONMENTS · {{PROJECT_NAME}}
+
+> 环境判定与红线。会话开始时执行判定；判不出来就停，不猜。
+
+## 1 环境矩阵
+
+| 环境 | 位置 | 端口 | ENV | 状态 |
+| --- | --- | --- | --- | --- |
+| local | 本机 | — | local | 可编辑与本地验证 |
+| testing | 未部署 | — | testing | 未部署 |
+| staging | 未部署 | — | staging | 未部署 |
+| prod | 未部署 | — | prod | 未部署 |
+
+## 2 判定顺序
+
+1. 从当前目录向上找 `env`。
+2. 读三键 `ENV` / `ROLE` / `ROOT`。
+3. 找不到或取值非法：输出 `ENV=unknown`，会话停止并询问用户。
+
+## 3 env 格式
+
+三行，权限 600，不进 git：
+
+```text
+ENV=local
+ROLE=authoring
+ROOT=/abs/path/to/project
+```
+
+## 4 取值映射
+
+| 来源值 | 映射 |
+| --- | --- |
+| local / development | local |
+| testing / test | testing |
+| staging / stage | staging |
+| production / prod | prod |
+
+## 5 红线
+
+| 环境 | 允许 | 禁止 |
+| --- | --- | --- |
+| local | 编辑、只读检查、本地可跑的验证 | 写凭据、向测试/生产环境写入 |
+| testing | 只读命令、一次性库测试 | 写业务数据 |
+| staging | 按发布单冒烟、迁移演练 | 未走变更单的写操作 |
+| prod | 按发布单发布、回滚 | 手工试验、直接改库 |
+
+## 6 凭据
+
+- 不进仓库、不进聊天、不进截图。
+- 只在项目指定的授权文件里，权限 600，AI 只读。
+- 日志与报错不得包含密钥，报错只到文件名或键名。
+
+## 7 验证位置
+
+- 本地可跑：
+- 必须在远端跑：
+
+## 8 本项目事实
+
+- 主机与部署根：
+- 数据库：
