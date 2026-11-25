@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 | 状态 | 待评审 |
-| 版本 | v1.1（2026-11-25 加入 adopt 模式） |
+| 版本 | v1.2（2026-11-25 加入仓外远端凭据，15 → 18 文件） |
 | 日期 | 2026-11-25 |
 | 范围 | 新建 DSH 个人技能 `project-constraints`：为新项目生成约束，或把同一套约束接入已有项目 |
 | 依据 | trader-plan2 的 AGENTS / ENVIRONMENTS / STATUS / docs 分层实践（脱敏泛化） |
@@ -11,14 +11,14 @@
 
 两种模式共用一套模板：
 
-- **new**：空项目，一次生成 15 个文件。
+- **new**：空项目，一次生成 18 个文件。
 - **adopt**：已有项目，先扫描出报告；默认只补缺失、不动已有文件；冲突给选项与建议，由用户裁决。
 
 ## 1 目标与非目标
 
 目标：
 
-1. new 产出 15 个文件，结构与 trader-plan2 同构，不含其品牌、主机、凭据、业务术语。
+1. new 产出 18 个文件，结构与 trader-plan2 同构，不含其品牌、主机、凭据、业务术语。
 2. adopt 只增不改：已有文件字节不变，缺失文件补齐，冲突有记录。
 3. 生成即满足：规则只写一处、环境先声明、决策留痕、状态可交接。
 4. 可验证：脚本检查 + 冷启动测试，不靠"看起来完成"。
@@ -30,6 +30,7 @@
 - 不生成子目录 AGENTS.md、CI 配置、文档站点、hook、空 spec 文件。
 - 不自动 `git init`、不自动提交、不写任何凭据。
 - 不迁移或重写已有文档。
+- 不存 git/ssh 凭据；见 [remote-secrets-design.md](2026-11-25-remote-secrets-design.md)。
 
 ## 2 生成物（两种模式共用）
 
@@ -41,7 +42,8 @@
 ├── README.md              # 先读表、阅读路径、文档地图
 ├── env                    # ENV= / ROLE= / ROOT=，权限 600，gitignored
 ├── env.example
-├── .gitignore             # 幂等追加 /env、.DS_Store、*.log、/node_modules、/vendor
+├── secrets.example        # 仓外凭据模板；真实值放 ~/.config/project-constraints/<项目>.env
+├── .gitignore             # 幂等追加 /env、secrets.env、*.secrets、.DS_Store、*.log、/node_modules、/vendor
 ├── docs/
 │   ├── spec/
 │   │   ├── README.md      # 分层规则、编号、单一出处地图（空表）
@@ -55,10 +57,12 @@
 │       └── README.md      # 部署、构建、验证手册的落点
 └── tools/
     ├── env.sh             # 读 env，打印三行；unknown 则 exit 1
-    └── check-links.sh     # 相对链接检查，零依赖
+    ├── check-links.sh     # 相对链接检查，零依赖
+    ├── secrets.sh         # 仓外 secrets 解析；只读、不打印
+    └── remote.sh          # 远端入口：check / git-push / ssh / rsync
 ~~~
 
-共 15 个文件。adopt 下已存在的路径跳过，未创建的路径按模板补。
+共 18 个文件。adopt 下已存在的路径跳过，未创建的路径按模板补。远端凭据的细节见 [remote-secrets-design.md](2026-11-25-remote-secrets-design.md)。
 
 ### 2.1 AGENTS.md 八节
 
@@ -92,13 +96,14 @@ adopt 下 `env` 缺失时：给了 `--env` / `--role` 就用，没给写 `ENV=un
 ~~~text
 project-constraints/
 ├── SKILL.md
-├── templates/             # 14 个模板；env 由脚本直接生成
+├── templates/             # 17 个模板；env 由脚本直接生成
 │   ├── AGENTS.md.tmpl  ENVIRONMENTS.md.tmpl  STATUS.md.tmpl  README.md.tmpl
 │   ├── env.example  gitignore.append
 │   ├── docs/spec/README.md.tmpl  docs/spec/00-overview.md.tmpl
 │   ├── docs/decisions/README.md.tmpl  docs/decisions/D-001.md.tmpl
 │   ├── docs/evidence/README.md.tmpl  docs/ops/README.md.tmpl
-│   └── tools/env.sh.tmpl  tools/check-links.sh.tmpl
+│   ├── secrets.example
+│   └── tools/env.sh.tmpl  tools/check-links.sh.tmpl  tools/secrets.sh.tmpl  tools/remote.sh.tmpl
 ├── scripts/
 │   ├── lib.sh             # 渲染、创建、追加、权限、报告，供两个模式共用
 │   ├── init.sh            # new
@@ -110,6 +115,7 @@ project-constraints/
     ├── run.sh
     ├── test-templates.sh  test-tools.sh  test-init.sh
     ├── test-check.sh      test-adopt.sh  test-skill-md.sh
+    └── test-secrets.sh
 ~~~
 
 SKILL.md 约束：
@@ -212,7 +218,7 @@ SKILL.md 约束：
 ### 6.4 check.sh
 
 - 用法 `bash scripts/check.sh DIR`。
-- 检查：15 个文件齐全；15 个生成文件中无 `{{…}}` 残留（不扫用户文件）；STATUS 四节齐全；ENVIRONMENTS §7/§8 每条 bullet 都有值；`docs/decisions/` 至少一个 `D-*.md` 且都在索引表；`env` 三键合法、权限 600、`.gitignore` 含 `/env`；调用 `$DIR/tools/check-links.sh "$DIR"`。
+- 检查：18 个文件齐全；18 个生成文件中无 `{{…}}` 残留（不扫用户文件）；STATUS 四节齐全；ENVIRONMENTS §7/§8 每条 bullet 都有值；`docs/decisions/` 至少一个 `D-*.md` 且都在索引表；`env` 三键合法、权限 600、`.gitignore` 含 `/env`；`secrets.example` 存在、`.gitignore` 挡 `secrets.env`、仓库内无 `secrets.env`、外部 secrets 存在时 600（只 stat）；调用 `$DIR/tools/check-links.sh "$DIR"`。
 - 逐项 ok/FAIL 与计数，任一失败 exit 1。
 
 ## 7 验证
@@ -220,7 +226,7 @@ SKILL.md 约束：
 | 编号 | 检查 | 通过标准 |
 | --- | --- | --- |
 | V1 | RED 基线（两场） | 无技能的 fresh subagent 分别做"新项目"与"半路项目"，各记录 ≥3 个缺失项 |
-| V2 | GREEN new | `init.sh --apply` 成功；`check.sh` 0 错；15 个文件 |
+| V2 | GREEN new | `init.sh --apply` 成功；`check.sh` 0 错；18 个文件 |
 | V3 | new 冷启动 | 新 subagent 只读 AGENTS + STATUS + README，正确声明环境并回答一个范围问题 |
 | V4 | 幂等 | 第二次 `init.sh` 退出码非 0 |
 | V5 | 占位符 | 人为留 `{{NAME}}`，`check.sh` 报错 exit 1 |
@@ -230,6 +236,7 @@ SKILL.md 约束：
 | V9 | 冲突表 | 报告"冲突裁决"每行都有选项与建议，既有 AGENTS 至少一行 |
 | V10 | adopt 冷启动 | 新 subagent 读"已有 AGENTS + 新 STATUS + 新 README"，正确声明环境并说清下一步 |
 | V11 | 安装 | `~/.dsh/skills/project-constraints/` 结构与 frontmatter 正确，新会话可见 |
+| V12 | 远端凭据 | 见 [remote-secrets-design.md](2026-11-25-remote-secrets-design.md) V1–V8 |
 
 测试在会话工作区内的临时项目进行，通过项目级 `.dsh/skills/` 挂载，不先动全局安装。
 
