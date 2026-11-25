@@ -29,24 +29,6 @@ done
 
 FILES="AGENTS.md ENVIRONMENTS.md STATUS.md README.md env env.example .gitignore docs/spec/README.md docs/spec/00-overview.md docs/decisions/README.md docs/decisions/D-001.md docs/evidence/README.md docs/ops/README.md tools/env.sh tools/check-links.sh"
 
-tmpl_for() {
-  case "$1" in
-    AGENTS.md) printf 'AGENTS.md.tmpl' ;;
-    ENVIRONMENTS.md) printf 'ENVIRONMENTS.md.tmpl' ;;
-    STATUS.md) printf 'STATUS.md.tmpl' ;;
-    README.md) printf 'README.md.tmpl' ;;
-    env.example) printf 'env.example' ;;
-    docs/spec/README.md) printf 'docs/spec/README.md.tmpl' ;;
-    docs/spec/00-overview.md) printf 'docs/spec/00-overview.md.tmpl' ;;
-    docs/decisions/README.md) printf 'docs/decisions/README.md.tmpl' ;;
-    docs/decisions/D-001.md) printf 'docs/decisions/D-001.md.tmpl' ;;
-    docs/evidence/README.md) printf 'docs/evidence/README.md.tmpl' ;;
-    docs/ops/README.md) printf 'docs/ops/README.md.tmpl' ;;
-    tools/env.sh) printf 'tools/env.sh.tmpl' ;;
-    tools/check-links.sh) printf 'tools/check-links.sh.tmpl' ;;
-    *) printf '' ;;
-  esac
-}
 
 existing=""
 for f in $FILES; do

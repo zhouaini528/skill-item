@@ -499,7 +499,7 @@ Expected: FAIL。
 
 - [ ] **Step 4: 实现 `adopt.sh` 的 `--apply`**
 
-只创建缺失文件：渲染、`chmod 600 env`、`chmod_exec tools`、追加 `.gitignore`；已有路径不读不写；打印 `created=N` 与 `skipped=M`。`AGENTS.md` 缺失时三个必填校验；存在时忽略这三个参数。`--report` 目标已存在则拒绝（exit 1）。
+只创建缺失文件：渲染、`chmod 600 env`、`chmod_exec tools`、追加 `.gitignore`；已有路径不读不写；打印 `created=N` 与 `skipped=M`。`--apply` 且 `AGENTS.md` 缺失时三个必填校验；只出报告时用默认值。`--report` 目标已存在则拒绝（exit 1）。
 
 - [ ] **Step 5: 跑测试确认通过**
 
