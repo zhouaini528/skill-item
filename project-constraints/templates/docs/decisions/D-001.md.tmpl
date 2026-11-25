@@ -1,0 +1,35 @@
+# D-001 采用项目约束体系
+
+| 项 | 值 |
+| --- | --- |
+| 编号 | D-001 |
+| 状态 | 已确认（{{DATE}}） |
+| 关联 | AGENTS.md、ENVIRONMENTS.md、STATUS.md |
+
+## 背景
+
+项目此前没有统一的运行约束：新会话不知道当前环境，规则散落，结论没有留痕。无论新建还是接入已有项目，都采用一套固定分层，避免每次重新约定。
+
+## 决策
+
+1. 根目录四件：AGENTS（运行约束）、ENVIRONMENTS（环境与红线）、STATUS（只写现在）、README（文档地图）。
+2. docs 四层：spec（唯一权威）、decisions（只追加）、evidence（带日期）、ops（运行手册）。
+3. 环境用根目录 `env` 三键声明；判不出来就停。
+4. 规则单一出处；口径变更先立 D-xxx；冲突登记 C-xxx。
+
+## 取舍
+
+- 未采用"只写 README"：规则会随篇幅散掉，新会话无法快速接手。
+- 未采用文档生成器或站点：对当前规模过重，维护成本高于收益。
+- 代价：多四个目录和一次性的整理成本；换来可交接、可追溯。
+
+## 影响
+
+- AGENTS.md：开工顺序与环境声明。
+- ENVIRONMENTS.md：环境矩阵与红线。
+- STATUS.md：每次状态变化更新。
+- docs/spec、docs/evidence：规范与证据分离。
+
+## 来源
+
+- 技能 project-constraints 的模板与 references/conventions.md。

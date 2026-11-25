@@ -19,6 +19,20 @@ assert_grep "环境声明格式" "$T/templates/AGENTS.md.tmpl" 'ENV=<local'
 assert_grep "开工跑 env.sh" "$T/templates/AGENTS.md.tmpl" 'bash tools/env.sh'
 assert_grep "STATUS 六节" "$T/templates/STATUS.md.tmpl" '^## 环境快照$'
 assert_no_grep "无旧项目残留" "$T/templates/AGENTS.md.tmpl" 'QTV|trader-plan2|43\.106\.83\.160|AutoTrader|\.qtv-env'
+assert_file "README 模板" "$T/templates/README.md.tmpl"
+assert_file "spec README" "$T/templates/docs/spec/README.md.tmpl"
+assert_file "D-001" "$T/templates/docs/decisions/D-001.md.tmpl"
+assert_file "env.example" "$T/templates/env.example"
+assert_grep "README 先读" "$T/templates/README.md.tmpl" '^## 先读$'
+assert_grep "spec 单一出处" "$T/templates/docs/spec/README.md.tmpl" '单一出处'
+assert_grep "spec 上限" "$T/templates/docs/spec/README.md.tmpl" '600'
+for h in '## 背景' '## 决策' '## 取舍' '## 影响' '## 来源'; do
+  assert_grep "D-001 $h" "$T/templates/docs/decisions/D-001.md.tmpl" "^$h$"
+done
+assert_grep "证据纪律" "$T/templates/docs/evidence/README.md.tmpl" '非权威'
+assert_grep "gitignore 忽略 env" "$T/templates/gitignore.append" '^/env$'
+assert_grep "env.example 三键" "$T/templates/env.example" '^ENV='
+
 got=$(grep -rhoE '\{\{[A-Z_]+\}\}' "$T/templates" | LC_ALL=C sort -u | tr '\n' ' ')
 want='{{DATE}} {{ONE_LINER}} {{PROJECT_NAME}} {{STACK}} '
 [[ "$got" == "$want" ]] && ok "变量集合" || bad "变量集合: $got"

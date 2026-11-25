@@ -1,0 +1,36 @@
+# {{PROJECT_NAME}}
+
+{{ONE_LINER}}
+
+## 先读
+
+| 你要做什么 | 先读 |
+| --- | --- |
+| 了解工作方式与红线 | [AGENTS.md](AGENTS.md) |
+| 看现在到哪、下一步 | [STATUS.md](STATUS.md) |
+| 确认环境与判定顺序 | [ENVIRONMENTS.md](ENVIRONMENTS.md) |
+| 找规范 | [docs/spec/README.md](docs/spec/README.md) |
+| 查为什么这样定 | [docs/decisions/README.md](docs/decisions/README.md) |
+
+## 三条阅读路径
+
+- 产品：`docs/spec/00-overview.md` → 领域 spec → 验收。
+- 开发：`AGENTS.md` → `ENVIRONMENTS.md` → `docs/spec/` → 代码。
+- 运维：`ENVIRONMENTS.md` → `docs/ops/README.md`。
+
+## 文档地图
+
+| 位置 | 内容 |
+| --- | --- |
+| docs/spec/ | 唯一权威规范 |
+| docs/decisions/ | D-xxx 决策，只追加 |
+| docs/evidence/ | 带日期与状态的证据 |
+| docs/ops/ | 部署与运行手册 |
+
+## 开工顺序
+
+1. [AGENTS.md](AGENTS.md)
+2. [STATUS.md](STATUS.md)
+3. `bash tools/env.sh`
+4. 本文件"文档地图"
+5. 当前任务相关 spec
